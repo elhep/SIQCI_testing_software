@@ -225,14 +225,14 @@ class Pin():
 #             print(pin_type)
 #             raise ValueError("pin_type not supported")
 
-def cmos():
+def cmos(dmm):
     for transistor in mos:
-        t = MOS(transistor)
+        t = MOS(transistor, dmm)
         t.perform_measurements()
     NotImplemented()
 
 class MOS():
-    def __init__(self, data):
+    def __init__(self, data, keithley_controller):
         self.name = data[0]
         self.volt = data[1]
         self.type = data[2]
@@ -245,6 +245,11 @@ class MOS():
             self.source = Pin(drains, data[3][1])
             self.drain  = Pin(sources, data[3][2])
         self.dmm_channel = data[4]
+        self.dmm = keithley_controller
+        self.switch_card = keithley_controller.cards[0]
+        self.matrix_card = keithley_controller.cards[1]
+        assert self.switch_card.__class__.__name__ == "Model_3723_2B"
+        assert self.matrix_card.__class__.__name__ == "Model_3732_4B"
 
     def perform_measurements(self):
         self.prepare_relays()
@@ -264,13 +269,13 @@ class MOS():
     '''
     def setup(self):
         for pin in [self.gate, self.drain, self.source]:
-            self.dmm.c3732.close(bank=pin.bank, row=pin.default_row, column=pin.column)
+            self.matrix_card.switch(bank=pin.bank, row=pin.default_row, column=pin.column)
 
     '''
     Connect gate and drain to proper VADJs
     '''
     def prepare_measurements(self, src_state, gate_v, drain_v):
-        self.dmm.c3723.close(self.dmm_channel)
+        self.switch_card.switch(self.dmm_channel)
         # Set VADJ0 to default value of gate
         self.vsup("VADJ0", self.gate.default_v)
 
@@ -278,16 +283,20 @@ class MOS():
         self.vsup("VADJ1", self.drain.default_v)
 
         # Switch gate from default value to vadj0
-        self.dmm.c3732.open(bank = self.gate.bank, row = self.gate.default_row, column = self.gate.column) #TODO check if it was open
-        self.dmm.c3732.close(bank = self.gate.bank, row = VADJ0, column = self.gate.column)         #TODO check if will not cross with something
+        # self.dmm.c3732.open(bank = self.gate.bank, row = self.gate.default_row, column = self.gate.column) #TODO check if it was open
+        # self.dmm.c3732.close(bank = self.gate.bank, row = VADJ0, column = self.gate.column)         #TODO check if will not cross with something
+        self.matrix_card.switch(bank=self.gate.bank, row=VADJ0, column=self.gate.column) # should close previous first
 
         # Switch drain from default value to vadj1
-        self.dmm.c3732.open(bank = self.drain.bank, row = self.drain.default_row, column = self.drain.column)
-        self.dmm.c3732.close(bank = self.drain.bank, row = VADJ0 if self.drain.bank == 4 else VADJ1, column = self.drain.column) #VADJ1 at bank 4 is on row 3 (NOT 4 like in banks 1-3)
+        # self.dmm.c3732.open(bank = self.drain.bank, row = self.drain.default_row, column = self.drain.column)
+        # self.dmm.c3732.close(bank = self.drain.bank, row = VADJ0 if self.drain.bank == 4 else VADJ1, column = self.drain.column) #VADJ1 at bank 4 is on row 3 (NOT 4 like in banks 1-3)
+        self.matrix_card.switch(bank = self.drain.bank, row = VADJ0 if self.drain.bank == 4 else VADJ1, column = self.drain.column)
 
         if src_state != self.source.default_v:
-            self.dmm.c3732.open(bank=self.source.bank, row=self.source.default_row, column=self.source.column)
-            self.dmm.c3732.close(bank=self.source.bank, row=GND if src_state == 0 else PWR,
+            # self.dmm.c3732.open(bank=self.source.bank, row=self.source.default_row, column=self.source.column)
+            # self.dmm.c3732.close(bank=self.source.bank, row=GND if src_state == 0 else PWR,
+            #                      column=self.source.column)
+            self.matrix_card.switch(bank=self.source.bank, row=GND if src_state == 0 else PWR,
                                  column=self.source.column)
 
         self.vsup("VADJ0", gate_v)
@@ -300,17 +309,21 @@ class MOS():
         self.vsup(VADJ0, self.gate.default_v)
         self.vsup(VADJ1, self.drain.default_v)
         if src_state != self.source.default_v:
-            self.dmm.c3732.open(bank=self.source.bank, row=GND if src_state == 0 else PWR,
-                                 column=self.source.column)
-            self.dmm.c3732.close(bank=self.source.bank, row=self.source.default_row, column=self.source.column)
+            # self.dmm.c3732.open(bank=self.source.bank, row=GND if src_state == 0 else PWR,
+            #                      column=self.source.column)
+            # self.dmm.c3732.close(bank=self.source.bank, row=self.source.default_row, column=self.source.column)
+            self.matrix_card.switch(bank=self.source.bank, row=self.source.default_row, column=self.source.column)
 
-        self.dmm.c3732.open(bank = self.gate.bank, row = VADJ0, column = self.gate.column)
-        self.dmm.c3732.close(bank = self.gate.bank, row = self.gate.default_row, column = self.gate.column)
+
+        # self.dmm.c3732.open(bank = self.gate.bank, row = VADJ0, column = self.gate.column)
+        # self.dmm.c3732.close(bank = self.gate.bank, row = self.gate.default_row, column = self.gate.column)
+        self.matrix_card.switch(bank = self.gate.bank, row = self.gate.default_row, column = self.gate.column)
 
         # Switch drain from default value to vadj1
-        self.dmm.c3732.open(bank = self.drain.bank, row = VADJ0 if self.drain.bank == 4 else VADJ1, column = self.drain.column) #VADJ1 at bank 4 is on row 3 (NOT 4 like in banks 1-3)
-        self.dmm.c3732.close(bank = self.drain.bank, row = self.drain.default_row, column = self.drain.column)
-        self.dmm.c3723.open(self.dmm_channel)
+        # self.dmm.c3732.open(bank = self.drain.bank, row = VADJ0 if self.drain.bank == 4 else VADJ1, column = self.drain.column) #VADJ1 at bank 4 is on row 3 (NOT 4 like in banks 1-3)
+        # self.dmm.c3732.close(bank = self.drain.bank, row = self.drain.default_row, column = self.drain.column)
+        self.matrix_card.switch(bank = self.drain.bank, row = self.drain.default_row, column = self.drain.column)
+        self.switch_card.open(self.dmm_channel)
 
     def transfer_ch(self):
         if self.type == "n":
