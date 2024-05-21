@@ -76,8 +76,8 @@ gates = [
     [0, 3.3, 2],
     [0, 18.0, 1],
     [0, 18.0, 2],
-    [0, 18.0, 3],
-    [0, 18.0, 4],
+    [18.0, 18.0, 3],
+    [18.0, 18.0, 4],
 ]
 sources = [
     [0, 1.8, 3],
@@ -125,15 +125,15 @@ class Pin():
         self.default_v = type[number][0]
         self.max_v     = type[number][1]
         self.column  = type[number][2]
-        if self.max == 1.8:
+        if self.max_v == 1.8:
             self.bank    =  1
-        elif self.max == 3.3:
+        elif self.max_v == 3.3:
             self.bank    =  2
-        elif self.max == 18.0:
+        elif self.max_v == 18.0:
             self.bank    =  3
-        elif self.max == 45.0:
+        elif self.max_v == 45.0:
             self.bank    =  4
-        self.default_row = PWR if self.default ==  self.max else GND
+        self.default_row = PWR if self.default_v ==  self.max_v else GND
 
 
 # class Pins:
@@ -224,20 +224,30 @@ class Pin():
 #         else:
 #             print(pin_type)
 #             raise ValueError("pin_type not supported")
-
-def cmos(dmm):
+def startup(dmm, vsup):
     for transistor in mos:
-        t = MOS(transistor, dmm)
+        t = MOS(transistor, dmm, vsup)
+        t.setup()
+        # arduino setup: connect vsup (not picoammeter) #TODO
+        if not vsup.debug:
+            vsup.output.general.set_state(True)
+
+def cmos(dmm, vsup, *args):
+    # arduino connect VADJ to vsup (not picoammeter) #TODO
+    for transistor in mos:
+        t = MOS(transistor, dmm, vsup)
         t.perform_measurements()
-    NotImplemented()
+
 
 class MOS():
-    def __init__(self, data, keithley_controller):
+    def __init__(self, data, keithley_controller, power_supply):
         self.name = data[0]
         self.volt = data[1]
         self.type = data[2]
         self.pins = data[3]
         self.gate = Pin(gates, data[3][0])
+
+        self.full_name = "Bank {} {} {}".format(self.volt, "NMOS" if self.type=="n" else "PMOS", self.name)
         if self.type == "n":  # source on SOURCE pin
             self.source = Pin(sources, data[3][1])
             self.drain  = Pin(drains, data[3][2])
@@ -245,19 +255,29 @@ class MOS():
             self.source = Pin(drains, data[3][1])
             self.drain  = Pin(sources, data[3][2])
         self.dmm_channel = data[4]
+
         self.dmm = keithley_controller
-        self.switch_card = keithley_controller.cards[0]
-        self.matrix_card = keithley_controller.cards[1]
+        self.switch_card = keithley_controller.cards[1]
+        self.matrix_card = keithley_controller.cards[2]
         assert self.switch_card.__class__.__name__ == "Model_3723_2B"
         assert self.matrix_card.__class__.__name__ == "Model_3732_4B"
 
+        self.vsup = power_supply
+
     def perform_measurements(self):
-        self.prepare_relays()
-        self.save_data(self.type+self.name+str(self.volt)+"_transfer",self.transfer_ch())
-        self.save_data(self.type+self.name+str(self.volt)+"_output", self.output_ch())
-        self.back_to_default()
+        print("\n :::::::::::::::::::::::::::::::::::::::::::::: ")
+        print(" ::::Starting measurements for {}".format(self.full_name))
+        print(" :::::::::::::::::::::::::::::::::::::::::::::: \n\n")
+        # self.setup()#self.prepare_relays() #setup was done at startup function
+        gate_values, drain_values, data = self.transfer_ch()
+        self.save_data(self.full_name +" transfer", gate_values, drain_values, data)
+        gate_values, drain_values, data = self.output_ch()
+        self.save_data(self.full_name +" output", gate_values, drain_values, data)
+        #back to default state:
+        self.setup()
 
     def save_data(self, file_name, gate_values, drain_values, data):
+        print("\n ::::Saving data for {}\n".format(self.full_name))
         with open(file_name, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(gate_values)
@@ -268,19 +288,20 @@ class MOS():
     Prepare relays at first setup (before turning on PSU)
     '''
     def setup(self):
+        print("\n ::::Setup: {}\n".format(self.full_name))
         for pin in [self.gate, self.drain, self.source]:
             self.matrix_card.switch(bank=pin.bank, row=pin.default_row, column=pin.column)
-
     '''
     Connect gate and drain to proper VADJs
     '''
     def prepare_measurements(self, src_state, gate_v, drain_v):
-        self.switch_card.switch(self.dmm_channel)
+        print("\n ::::Prepering measurements {}\n".format(self.full_name))
+        self.switch_card.switch_channel(self.dmm_channel)
         # Set VADJ0 to default value of gate
-        self.vsup("VADJ0", self.gate.default_v)
+        self.vsup.set_vamplitude("VADJ0", self.gate.default_v)
 
         # Set VADJ1 to default value of drain
-        self.vsup("VADJ1", self.drain.default_v)
+        self.vsup.set_vamplitude("VADJ1", self.drain.default_v)
 
         # Switch gate from default value to vadj0
         # self.dmm.c3732.open(bank = self.gate.bank, row = self.gate.default_row, column = self.gate.column) #TODO check if it was open
@@ -299,15 +320,16 @@ class MOS():
             self.matrix_card.switch(bank=self.source.bank, row=GND if src_state == 0 else PWR,
                                  column=self.source.column)
 
-        self.vsup("VADJ0", gate_v)
-        self.vsup("VADJ1", drain_v)
+        self.vsup.set_vamplitude("VADJ0", gate_v)
+        self.vsup.set_vamplitude("VADJ1", drain_v)
 
     '''
     Restore default setup of MOS relays
     '''
     def reset_relays(self, src_state):
-        self.vsup(VADJ0, self.gate.default_v)
-        self.vsup(VADJ1, self.drain.default_v)
+        print("\n ::::Reseting relays {}\n".format(self.full_name))
+        self.vsup.set_vamplitude("VADJ0", self.gate.default_v)
+        self.vsup.set_vamplitude("VADJ1", self.drain.default_v)
         if src_state != self.source.default_v:
             # self.dmm.c3732.open(bank=self.source.bank, row=GND if src_state == 0 else PWR,
             #                      column=self.source.column)
@@ -326,6 +348,7 @@ class MOS():
         self.switch_card.open(self.dmm_channel)
 
     def transfer_ch(self):
+        print("\n ::::Transfer {}\n".format(self.full_name))
         if self.type == "n":
             gate_start = 0
             source_start = 0
@@ -358,7 +381,19 @@ class MOS():
                 drain_step = -5
 
         gate_values = [round(i,2) for i in np.arange(gate_start, gate_limit+gate_step, gate_step)]
+        if gate_values[-1] > gate_limit:
+            print("Gate: {}".format(gate_values[-1]))
+            gate_values.pop()
+        elif gate_values[-1] < 0:
+            print("Gate: {}".format(gate_values[-1]))
+            gate_values.pop()
         drain_values = [round(i,2) for i in np.arange(drain_start, drain_limit+drain_step, drain_step)]
+        if drain_values[-1] > drain_limit:
+            print("Drain: {}".format(drain_values[-1]))
+            drain_values.pop()
+        elif drain_values[-1] < 0:
+            print("Drain: {}".format(drain_values[-1]))
+            drain_values.pop()
 
         self.prepare_measurements(source_start, gate_start, drain_start)
 
@@ -366,14 +401,15 @@ class MOS():
         # Outer loop over drain change
         # Inner loop over gate change
         data = list()
-        for drain_vadj in drain_values:
+        for drain_vadj in drain_values: #TODO implement function for scaning over parameters
             # change drain voltage
-            self.vsup(VADJ1, drain_vadj)
+            self.vsup.set_vamplitude("VADJ1", drain_vadj)
             single_family = list()
             for gate_vadj in gate_values:
-                self.vsup(VADJ0, gate_vadj)
+                self.vsup.set_vamplitude("VADJ0", gate_vadj)
                 # measurements
-                current = self.meas.get_voltage()/0.1   #0.1 R resistor
+                print("Current meas")
+                current = 0.01#self.meas.get_voltage()/0.1   #0.1 R resistor #TODO implement
                 single_family.append(current)  #TODO Do we want to set current limit?
 
                 if current >= 0.04: # 40 mA limit
@@ -383,9 +419,10 @@ class MOS():
         #switch all pins to default voltage sources
         self.reset_relays(source_start)
 
-        return {gate_values, drain_values, data}
+        return gate_values, drain_values, data
 
     def output_ch(self):
+        print("\n ::::Output {}\n".format(self.full_name))
         # We doesn't check source values - it was set during transfer_ch
         if self.type == "n":
             gate_start = 0
@@ -428,12 +465,13 @@ class MOS():
         data = list()
         for gate_vadj in gate_values:
             # change drain voltage
-            self.vsup(VADJ1, drain_vadj)
+            self.vsup.set_vamplitude("VADJ0", gate_vadj)
             single_family = list()
             for drain_vadj in drain_values:
-                self.vsup(VADJ0, gate_vadj)
+                self.vsup.set_vamplitude("VADJ1", drain_vadj)
                 # measurements
-                current = self.meas.get_voltage()/0.1   #0.1 R resistor
+                print("Current meas")
+                current = 0.001 #self.meas.get_voltage()/0.1   #0.1 R resistor #TODO implement
                 single_family.append(current)  #TODO Do we want to set current limit?
 
                 if current >= 0.04: # 40 mA limit
@@ -443,4 +481,4 @@ class MOS():
         # switch all pins to default voltage sources
         self.reset_relays(source_start)
 
-        return {gate_values, drain_values, data}
+        return gate_values, drain_values, data

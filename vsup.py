@@ -1,42 +1,107 @@
 from RsNgx import *
+import time
+
+class ChannelConfig():
+    def __init__(self, alias, vamplitude, camplitude, vprotection=None, vlimit=None, climit=None):
+        self.alias = alias
+        self.vprotection = vprotection
+        self.vamplitude = vamplitude
+        self.vlimit = vlimit
+        self.camplitude = camplitude
+        self.climit = climit
 
 class NGP800(RsNgx):
-    def __init__(self, ip):
-        RsNgx.__init__(self, 'TCPIP::'+ip+'::INSTR')
-        self.utilities.reset()
-        self.output.general.set_state(False)
+    def __init__(self, channels_config: [ChannelConfig]*4, ip=None, debug=False):
+        self.debug = debug
         self.channels = dict()
-        self.channels["P45V0"] = self.clone()
-        self.channels["P45V0"].set_persistent_channel(3)
-        self.channels["P18V0"] = self.clone()
-        self.channels["P18V0"].set_persistent_channel(1)
-        self.channels["VADJ0"] = self.clone()
-        self.channels["VADJ0"].set_persistent_channel(4)
-        self.channels["VADJ1"] = self.clone()
-        self.channels["VADJ1"].set_persistent_channel(2)
-        for i, ch in enumerate(self.channels.values()):
-            ch.output.set_select(True)
-            # self.set_amplitude(ch, i)
-            # ch.source.current.protection.set_state(True)
-            ch.source.voltage.protection.set_state(True)
-            ch.source.voltage.protection.set_level(13.5)
-            ch.source.voltage.level.immediate.set_amplitude(12.0)
-            ch.source.current.level.immediate.set_amplitude(1.0)
-            ch.source.current.level.immediate.alimit.upper.set(4.0)
-            ch.source.voltage.level.immediate.alimit.upper.set(13.5)
-            ch.source.alimit.set_state(True)
-            # ch._core.io.write(f'SOURce:CURRent:PROTection:STATe 1')
-            # self._core.io.write(f'SOURce:CURRent:PROTection:STATe {param}')
-            ch.fuse.set_state(True)
+        if not debug:
+            RsNgx.__init__(self, 'TCPIP::'+ip+'::INSTR')
+            self.utilities.reset()
+            self.output.general.set_state(False)
+            for idx, config in enumerate(channels_config):
+                if config is None:
+                    continue
+                else:
+                    self.channels[config.alias] = self.clone()
+                    self.channels[config.alias].set_persistent_channel(idx+1)
+        else:
+            for idx, config in enumerate(channels_config):
+                if config is None:
+                    continue
+                else:
+                    self.channels[config.alias] = config
 
-        #TODO set current limits, change voltage limit and voltage protection
-        # ngx.source.voltage.protection.set_level()
-        # ngx.source.voltage.level.immediate.alimit.upper.set(13.5)
-        # ngx.source.current.set_range(arg_0=1.0)
+        for config in channels_config:
+            if config is None:
+                continue
+            self.set_select(config.alias, True)
+            if config.vprotection is not None:
+                self.set_voltage_protection_state(config.alias, True)    #OVP
+                self.set_voltage_protection_level(config.alias, config.vprotection)
+            if config.vlimit is not None:   # Safety limits
+                self.set_valimit_upper(config.alias, config.vlimit)
+                self.set_alimit_state(config.alias, True)
+            if config.climit is not None:
+                self.set_calimit_upper(config.alias, config.climit)
+                self.set_fuse_state(config.alias, True)
+            self.set_vamplitude(config.alias, config.vamplitude)
+            self.set_camplitude(config.alias, config.camplitude) #TODO check delays
+            # todo verify configuration above
+        if not debug:
+            self.output.general.set_state(False)
+            time.sleep(0.5)
 
+    def set_fuse_state(self, ch, state):
+        if self.debug:
+            print(f'{ch} FUSE:STATe {state}')
+        else:
+            self.channels[ch].fuse.set_state(state)
 
-    def set_amplitude(self, ch, vol):
-        self.channels[ch].source.voltage.level.immediate.set_amplitude(vol)
+    def set_vamplitude(self, ch, vol):
+        if self.debug:
+            print(f'{ch} SOURce:VOLTage:LEVel:IMMediate:AMPLitude {vol}')
+        else:
+            self.channels[ch].source.voltage.level.immediate.set_amplitude(vol)
+            time.sleep(0.5)
+
+    def set_valimit_upper(self, ch, vol):
+        if self.debug:
+            print(f'{ch} SOURce:VOLTage:LEVel:IMMediate:ALIMit:UPPer {vol}')
+        else:
+            self.channels[ch].source.voltage.level.immediate.alimit.upper.set(vol)
+
+    def set_alimit_state(self, ch, state):
+        if self.debug:
+            print(f'{ch} SOURce:ALIMit:STATe {state}')
+        else:
+            self.channels[ch].source.alimit.set_state(state)
+
+    def set_camplitude(self, ch, vol):
+        if self.debug:
+            print(f'{ch} SOURce:CURRent:LEVel:IMMediate:AMPLitude {vol}')
+        else:
+            self.channels[ch].source.current.level.immediate.set_amplitude(vol)
+
+    def set_calimit_upper(self, ch, vol):
+        if self.debug:
+            print(f'{ch} SOURce:CURRent:LEVel:IMMediate:ALIMit:UPPer {vol}')
+        else:
+            self.channels[ch].source.current.level.immediate.alimit.upper.set(vol)
 
     def set_select(self, ch, state):
-        self.channels[ch].outputt.set_select(state)
+        if self.debug:
+            print(f'{ch} OUTPut:SELect {state}')
+        else:
+            self.channels[ch].output.set_select(state)
+
+    def set_voltage_protection_state(self, ch, state):
+        if self.debug:
+            print(f'{ch} SOURce:VOLTage:PROTection:STATe {state}')
+        else:
+            self.channels[ch].source.voltage.protection.set_state(state)
+
+    def set_voltage_protection_level(self, ch, level):
+        if self.debug:
+            print(f'{ch} SOURce:VOLTage:PROTection:LEVel {level}')
+        else:
+            self.channels[ch].source.voltage.protection.set_level(level)
