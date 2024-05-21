@@ -1,9 +1,11 @@
 # This is a sample Python script.
+import os.path
 
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
-from cmos import cmos, startup
+from cmos import CMOSMeas, NMOSMeas
+from arduino import Arduino
 
 def init(vsup, arduino):
     '''
@@ -16,22 +18,38 @@ def init(vsup, arduino):
 def run(vsup, dmm):
     vsup    = vsup
     picoamp = ()
-    arduino = ()
+    arduino = Arduino()
     dmm     = dmm
+    lakeshore = LakeShore()
 
-    measurements = [
-        cmos,
-        # nmos,
-        # vref,
-        # iref,
-        # dac,
-        # leakage,
+    measurements = [        # do NOT comment any line. If you want to skip some measuremnts, change arg: perfom=False!!!
+        CMOSMeas(dmm, vsup, arduino, perform=True),# do NOT comment any line
+        NMOSMeas(dmm, vsup, arduino, perform=True), # do NOT comment any line
+        viref(dmm, arduino, lakeshore, perform=True), # do NOT comment any line
+        # ref(dmm, arduino), # do NOT comment any line
+        # dac, # do NOT comment any line
+        # leakage, # do NOT comment any line
     ]
-    startup(dmm, vsup) #here will be arduino TODO
-    # init(vsup, arduino)
 
-    for test in measurements:
-        test(dmm, vsup, arduino, picoamp)
+    if not os.path.exists("results"):
+        os.makedirs("results")
+
+    #Prepare matrix and switch card without any voltage
+    for experiment in measurements:
+        experiment.setup()
+    print("\n::::::::::::::::::::::::::::::::::::::::::::::::")
+    print("Connect USB to Arduino and press y")
+    print("::::::::::::::::::::::::::::::::::::::::::::::::\n")
+    x = input()
+    while x != 'y':
+        print("Press y after connecting USB to Arduino")
+        x = input()
+
+    if not vsup.debug:
+        vsup.output.general.set_state(True)
+
+    for meas in measurements:
+        meas.meas()
 
 
 
