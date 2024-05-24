@@ -4,13 +4,13 @@ REL1 = 3
 REL0 = 2
 
 class Arduino():
-    def __init__(self, debug=False, sim = True):
+    def __init__(self, serial_nb, debug=False, sim = True):
         self.usb = None
         self.asic_config = 0
         self.debug = debug
         self.sim = sim
         if not sim:
-            self.ser = serial.Serial('/dev/ttyUSB' + str(nb), 115200, timeout=2)
+            self.ser = serial.Serial('/dev/ttyUSB' + str(serial_nb), 115200, timeout=2)
 
     def print_config(self):
         print("\nNew ASIC config:")
@@ -65,7 +65,7 @@ class Arduino():
         self.asic_config = self.asic_config & 0b1111_1111_1111_1111_1100_0000_0000_1111
         val = val & 0x3FF
         self.asic_config |= (val << 4)
-        if debug:
+        if self.debug:
             self.print_config()
         self._update_asic_reg()
 

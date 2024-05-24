@@ -20,7 +20,7 @@ def init(vsup, arduino):
 def run(vsup, dmm):
     vsup    = vsup
     picoamp = ()
-    arduino = Arduino(debug = True, sim = True)
+    arduino = Arduino(serial_nb=1, debug = True, sim = True)
     dmm     = dmm
     lakeshore = LakeShore()
 
