@@ -6,6 +6,8 @@ import os.path
 
 from cmos import CMOSMeas, NMOSMeas
 from arduino import Arduino
+from ivref import IVRefMeas
+from dac import DACMeas
 
 def init(vsup, arduino):
     '''
@@ -18,16 +20,15 @@ def init(vsup, arduino):
 def run(vsup, dmm):
     vsup    = vsup
     picoamp = ()
-    arduino = Arduino()
+    arduino = Arduino(debug = True, sim = True)
     dmm     = dmm
     lakeshore = LakeShore()
 
     measurements = [        # do NOT comment any line. If you want to skip some measuremnts, change arg: perfom=False!!!
         CMOSMeas(dmm, vsup, arduino, perform=True),# do NOT comment any line
         NMOSMeas(dmm, vsup, arduino, perform=True), # do NOT comment any line
-        viref(dmm, arduino, lakeshore, perform=True), # do NOT comment any line
-        # ref(dmm, arduino), # do NOT comment any line
-        # dac, # do NOT comment any line
+        IVRefMeas(dmm, arduino, lakeshore, perform=True), # do NOT comment any line
+        DACMeas(dmm, arduino, perform=True), # do NOT comment any line
         # leakage, # do NOT comment any line
     ]
 
