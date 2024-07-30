@@ -1,6 +1,7 @@
 {
-    "configuration": "cpu=atmega328",
-    "board": "arduino:avr:nano",
-    "sketch": "arduino\\arduino.ino",
-    "port": "COM1"
+    "configuration": "mode=on",
+    "board": "arduino:megaavr:nona4809",
+    "sketch": "arduino/arduino.ino",
+    "port": "/dev/ttyACM1",
+    "programmer": "medbg"
 }

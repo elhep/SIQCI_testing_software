@@ -11,9 +11,10 @@ class ChannelConfig():
         self.climit = climit
 
 class NGP800(RsNgx):
-    def __init__(self, channels_config: [ChannelConfig]*4, ip=None, debug=False):
+    def __init__(self, channels_config: [ChannelConfig]*4, ip=None, debug=False, echo=True):
         self.debug = debug
         self.channels = dict()
+        self.echo = echo
         if not debug:
             RsNgx.__init__(self, 'TCPIP::'+ip+'::INSTR')
             self.utilities.reset()
@@ -56,6 +57,8 @@ class NGP800(RsNgx):
             print(f'{ch} FUSE:STATe {state}')
         else:
             self.channels[ch].fuse.set_state(state)
+            if self.echo:
+                print(f'{ch} FUSE:STATe {state}')
 
     def set_vamplitude(self, ch, vol):
         if self.debug:
@@ -63,45 +66,61 @@ class NGP800(RsNgx):
         else:
             self.channels[ch].source.voltage.level.immediate.set_amplitude(vol)
             time.sleep(0.5)
+            if self.echo:
+                print(f'{ch} SOURce:VOLTage:LEVel:IMMediate:AMPLitude {vol}')
 
     def set_valimit_upper(self, ch, vol):
         if self.debug:
             print(f'{ch} SOURce:VOLTage:LEVel:IMMediate:ALIMit:UPPer {vol}')
         else:
             self.channels[ch].source.voltage.level.immediate.alimit.upper.set(vol)
+            if self.echo:
+                print(f'{ch} SOURce:VOLTage:LEVel:IMMediate:ALIMit:UPPer {vol}')
 
     def set_alimit_state(self, ch, state):
         if self.debug:
             print(f'{ch} SOURce:ALIMit:STATe {state}')
         else:
             self.channels[ch].source.alimit.set_state(state)
+            if self.echo:
+                print(f'{ch} SOURce:ALIMit:STATe {state}')
 
     def set_camplitude(self, ch, vol):
         if self.debug:
             print(f'{ch} SOURce:CURRent:LEVel:IMMediate:AMPLitude {vol}')
         else:
             self.channels[ch].source.current.level.immediate.set_amplitude(vol)
+            if self.echo:
+                print(f'{ch} SOURce:CURRent:LEVel:IMMediate:AMPLitude {vol}')
 
     def set_calimit_upper(self, ch, vol):
         if self.debug:
             print(f'{ch} SOURce:CURRent:LEVel:IMMediate:ALIMit:UPPer {vol}')
         else:
             self.channels[ch].source.current.level.immediate.alimit.upper.set(vol)
+            if self.echo:
+                print(f'{ch} SOURce:CURRent:LEVel:IMMediate:ALIMit:UPPer {vol}')
 
     def set_select(self, ch, state):
         if self.debug:
             print(f'{ch} OUTPut:SELect {state}')
         else:
             self.channels[ch].output.set_select(state)
+            if self.echo:
+                print(f'{ch} OUTPut:SELect {state}')
 
     def set_voltage_protection_state(self, ch, state):
         if self.debug:
             print(f'{ch} SOURce:VOLTage:PROTection:STATe {state}')
         else:
             self.channels[ch].source.voltage.protection.set_state(state)
+            if self.echo:
+                print(f'{ch} SOURce:VOLTage:PROTection:STATe {state}')
 
     def set_voltage_protection_level(self, ch, level):
         if self.debug:
             print(f'{ch} SOURce:VOLTage:PROTection:LEVel {level}')
         else:
             self.channels[ch].source.voltage.protection.set_level(level)
+            if self.echo:
+                print(f'{ch} SOURce:VOLTage:PROTection:LEVel {level}')

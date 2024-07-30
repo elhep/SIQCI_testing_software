@@ -7,7 +7,7 @@ class IVRefMeas():
         self.perform = perform
         self.arduino = arduino
         self.lakeshore = lakeshore
-        self.switch_card = keithley_controller.cards[1]
+        self.switch_card = dmm.cards[1]
         assert self.switch_card.__class__.__name__ == "Model_3723_2B"
 
     def setup(self):

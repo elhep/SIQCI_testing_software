@@ -1,16 +1,20 @@
 import serial
 SHDN = 2
 REL1 = 3
-REL0 = 2
+REL0 = 4
 
 class Arduino():
     def __init__(self, serial_nb, debug=False, sim = True):
-        self.usb = None
+
         self.asic_config = 0
         self.debug = debug
         self.sim = sim
         if not sim:
-            self.ser = serial.Serial('/dev/ttyUSB' + str(serial_nb), 115200, timeout=2)
+            self.ser = serial.Serial(
+                port = "/dev/ttyACM0",
+                baudrate=9600,
+            )
+            # self.ser = serial.Serial('/dev/ttyUSB' + str(serial_nb), 115200, timeout=2)
 
     def print_config(self):
         print("\nNew ASIC config:")
