@@ -1,4 +1,4 @@
-import serial
+import serial, time
 SHDN = 2
 REL1 = 3
 REL0 = 4
@@ -79,3 +79,10 @@ class Arduino():
 
     def switch_to_picoammeter(self):
         self._update_io_status(REL0, 1) # source: picoameter (not R&S), remember to control REL1 for bank4 measurements
+
+    def switch_vsup(self, state):
+        if state:
+            self._update_io_status(SHDN, 0)
+        else:
+            self._update_io_status(SHDN, 1)
+        time.sleep(0.5)

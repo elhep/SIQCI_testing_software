@@ -8,6 +8,7 @@ from cmos import CMOSMeas, NMOSMeas
 from arduino import Arduino
 from ivref import IVRefMeas
 from dac import DACMeas
+import time
 
 def init(vsup, arduino):
     '''
@@ -17,27 +18,25 @@ def init(vsup, arduino):
     '''
     pass
 
-def run(vsup, dmm):
+def run(vsup, dmm, arduino, switch_all_v):
     vsup    = vsup
     picoamp = ()
-    arduino = Arduino(serial_nb=1, debug = True, sim = False)
+    arduino = arduino
     dmm     = dmm
     lakeshore = () #LakeShore()
 
     measurements = [        # do NOT comment any line. If you want to skip some measuremnts, change arg: perfom=False!!!
-        CMOSMeas(dmm, vsup, arduino, perform=True),# do NOT comment any line
-        NMOSMeas(dmm, vsup, arduino, perform=True), # do NOT comment any line
-        IVRefMeas(dmm, arduino, lakeshore, perform=True), # do NOT comment any line
-        DACMeas(dmm, arduino, perform=True), # do NOT comment any line
+        CMOSMeas(switch_all_v, dmm, vsup, arduino, perform=True),# do NOT comment any line
+        NMOSMeas(switch_all_v, dmm, vsup, arduino, perform=True), # do NOT comment any line
+        IVRefMeas(switch_all_v, dmm, arduino, lakeshore, "V", perform=True), # do NOT comment any line
+        IVRefMeas(switch_all_v, dmm, arduino, lakeshore, "I", perform=True), # do NOT comment any line
+        DACMeas(switch_all_v, dmm, arduino, perform=True), # do NOT comment any line
         # leakage, # do NOT comment any line
     ]
 
     if not os.path.exists("results"):
         os.makedirs("results")
 
-    #Prepare matrix and switch card without any voltage
-    for experiment in measurements:
-        experiment.setup()
     print("\n::::::::::::::::::::::::::::::::::::::::::::::::")
     print("Connect USB to Arduino and press y")
     print("::::::::::::::::::::::::::::::::::::::::::::::::\n")
@@ -87,10 +86,21 @@ if __name__ == '__main__':
         vlimit = 45.5,
         climit = 0.5
     )
-    vsup = NGP800(channels_config=[ch1, ch2, ch3, ch4], ip="192.168.95.140", debug=False)
+    vsup = NGP800(channels_config=[ch1, ch2, ch3, ch4], ip="192.168.95.140", debug=True)
+
+    arduino = Arduino(serial_nb=1, debug = True, sim = True)
 
     from keithley.Drivers.Series_3700A.Series_3700A_Python_Sockets_Driver import card_model, Series_3700A_Sockets_Driver
-    controler = Series_3700A_Sockets_Driver.KEI3706A(stub=0)
+    def switch_all_v(state):
+        if state:   # Arduino - first to swich on, last to swich off
+            arduino.switch_vsup(state)
+            vsup.output.general.set_state(state)
+            time.sleep(1)
+        else:
+            vsup.output.general.set_state(state)
+            arduino.switch_vsup(state)
+            time.sleep(1)
+    controler = Series_3700A_Sockets_Driver.KEI3706A(switch_all_v, stub=1)
     ipAddress1 = "192.168.95.141"
     port = 5025
     timeout = 20.0
@@ -106,5 +116,5 @@ if __name__ == '__main__':
     # card3732.close(card3732.channel_number(1, 2, 7))
 
 
-    run(vsup, controler)
+    run(vsup, controler, arduino, switch_all_v)
 

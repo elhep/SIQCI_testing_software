@@ -146,7 +146,7 @@ class NMOSMeas():
         self.vsup = vsup
         self.perform = perform
         self.arduino = arduino
-        self.t = MOS(nmos, self.dmm, self.vsup)
+        self.t = MOS(nmos, self.dmm, self.vsup, switch_all_v)
 
     def setup(self):
         self.t.setup()
@@ -156,20 +156,25 @@ class NMOSMeas():
             return 0
         else:
             self.arduino.switch_to_vadj()
+            self.t.prepare_measurements()
+            self.t.switch_all_v(True)
             for i in range(64):
-                self.arduino.set_nmos_channel(n=i)
                 self.t.name = "NMOS M{}".format(i)
                 self.t.full_name = "NMOS MATRIX: M{}".format(i)
+                self.arduino.set_nmos_channel(n=i)
                 self.t.perform_measurements()
+            self.t.reset_relays()
 
 
 class CMOSMeas():
-    def __init__(self, dmm, vsup, arduino, perform, *args):
+    def __init__(self, switch_all_v, dmm, vsup, arduino, perform, *args):
         self.dmm = dmm
         self.vsup = vsup
         self.perform = perform
         self.arduino = arduino
-        self.t = [MOS(transistor, self.dmm, self.vsup) for transistor in mos]
+        self.t = [MOS(transistor, self.dmm, self.vsup, switch_all_v) for transistor in mos]
+        for mos in self.t:
+            mos.setup()
 
 
     def setup(self):
@@ -182,15 +187,19 @@ class CMOSMeas():
         else:
             self.arduino.switch_to_vadj()
             for t in self.t:
+                t.prepare_measurements()
+                t.switch_all_v(True)
                 t.perform_measurements()
+                t.reset_relays()
 
 class MOS():
-    def __init__(self, data, keithley_controller, power_supply):
+    def __init__(self, data, keithley_controller, power_supply, switch_all_v):
         self.name = data[0]
         self.volt = data[1]
         self.type = data[2]
         self.pins = data[3]
         self.gate = Pin(gates, data[3][0])
+        self.switch_all_v = switch_all_v
 
         self.full_name = "Bank {} {} {}".format(self.volt, "NMOS" if self.type=="n" else "PMOS", self.name)
         if self.type == "n":  # source on SOURCE pin
@@ -219,13 +228,13 @@ class MOS():
         print("\n :::::::::::::::::::::::::::::::::::::::::::::: ")
         print(" ::::Starting measurements for {}".format(self.full_name))
         print(" :::::::::::::::::::::::::::::::::::::::::::::: \n\n")
-        # self.setup()#self.prepare_relays() #setup was done at startup function
+        # self.setup()#self.prepare_relays() #setup was done at startup function 
         gate_values, drain_values, data = self.transfer_ch()
         self.save_data(self.full_name +" transfer", gate_values, drain_values, data)
         gate_values, drain_values, data = self.output_ch()
         self.save_data(self.full_name +" output", gate_values, drain_values, data)
         #back to default state:
-        self.setup()
+        # self.setup() #done by reset()
         self.switch_card.open_bank1() #disconnect vadj from matrix card (just in case)
 
     def save_data(self, file_name, gate_values, drain_values, data):
@@ -291,12 +300,12 @@ class MOS():
         print("\n ::::Reseting relays {}\n".format(self.full_name))
         self.vsup.set_vamplitude("VADJ1", self.gate.default_v)
         self.vsup.set_vamplitude("VADJ0", self.drain.default_v)
-        if self.source is not None:
-            if src_state != self.source.default_v:
+        # if self.source is not None:
+        #     if src_state != self.source.default_v:
                 # self.dmm.c3732.open(bank=self.source.bank, row=GND if src_state == 0 else PWR,
                 #                      column=self.source.column)
                 # self.dmm.c3732.close(bank=self.source.bank, row=self.source.default_row, column=self.source.column)
-                self.matrix_card.switch(bank=self.source.bank, row=self.source.default_row, column=self.source.column)
+        self.matrix_card.switch(bank=self.source.bank, row=self.source.default_row, column=self.source.column)
 
 
         # self.dmm.c3732.open(bank = self.gate.bank, row = VADJ0, column = self.gate.column)
@@ -357,7 +366,8 @@ class MOS():
             print("Drain: {}".format(drain_values[-1]))
             drain_values.pop()
 
-        self.prepare_measurements(source_start, gate_start, drain_start)
+        # self.prepare_measurements(source_start, gate_start, drain_start)
+        # self.switch_all_v(True)
 
         # begin measurements
         # Outer loop over drain change
@@ -380,7 +390,7 @@ class MOS():
             data.append(single_family)
 
         #switch all pins to default voltage sources
-        self.reset_relays(source_start)
+        # self.reset_relays(source_start)
 
         return gate_values, drain_values, data
 
@@ -433,7 +443,7 @@ class MOS():
             print("Drain: {}".format(drain_values[-1]))
             drain_values.pop()
 
-        self.prepare_measurements(source_start, gate_start, drain_start)
+        # self.prepare_measurements(source_start, gate_start, drain_start)
         # begin measurements
         # Outer loop over gate change
         # Inner loop over drain change
@@ -455,6 +465,6 @@ class MOS():
             data.append(single_family)
 
         # switch all pins to default voltage sources
-        self.reset_relays(source_start)
+        # self.reset_relays(source_start)
 
         return gate_values, drain_values, data
