@@ -65,7 +65,7 @@ class NGP800(RsNgx):
             print(f'{ch} SOURce:VOLTage:LEVel:IMMediate:AMPLitude {vol}')
         else:
             self.channels[ch].source.voltage.level.immediate.set_amplitude(vol)
-            time.sleep(0.5)
+            time.sleep(1)
             if self.echo:
                 print(f'{ch} SOURce:VOLTage:LEVel:IMMediate:AMPLitude {vol}')
 

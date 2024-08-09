@@ -141,12 +141,13 @@ class Pin():
 
 
 class NMOSMeas():
-    def __init__(self, dmm, vsup, arduino, perform, *args):
+    def __init__(self, pwr, dmm, vsup, arduino, perform, *args):
         self.dmm = dmm
         self.vsup = vsup
         self.perform = perform
         self.arduino = arduino
-        self.t = MOS(nmos, self.dmm, self.vsup, switch_all_v)
+        self.t = MOS(nmos, self.dmm, self.vsup, pwr)
+        self.t.setup()
 
     def setup(self):
         self.t.setup()
@@ -156,25 +157,25 @@ class NMOSMeas():
             return 0
         else:
             self.arduino.switch_to_vadj()
-            self.t.prepare_measurements()
-            self.t.switch_all_v(True)
+            self.t.prepare_measurements(*self.t.transfer_start_parameters())
+            self.t.pwr.switch_all_v(True)
             for i in range(64):
                 self.t.name = "NMOS M{}".format(i)
                 self.t.full_name = "NMOS MATRIX: M{}".format(i)
                 self.arduino.set_nmos_channel(n=i)
                 self.t.perform_measurements()
-            self.t.reset_relays()
+            self.t.reset_relays(self.t.output_source_parameter())
 
 
 class CMOSMeas():
-    def __init__(self, switch_all_v, dmm, vsup, arduino, perform, *args):
+    def __init__(self, pwr, dmm, vsup, arduino, perform, *args):
         self.dmm = dmm
         self.vsup = vsup
         self.perform = perform
         self.arduino = arduino
-        self.t = [MOS(transistor, self.dmm, self.vsup, switch_all_v) for transistor in mos]
-        for mos in self.t:
-            mos.setup()
+        self.t = [MOS(transistor, self.dmm, self.vsup, pwr) for transistor in mos]
+        for t in self.t:
+            t.setup()
 
 
     def setup(self):
@@ -187,19 +188,19 @@ class CMOSMeas():
         else:
             self.arduino.switch_to_vadj()
             for t in self.t:
-                t.prepare_measurements()
-                t.switch_all_v(True)
+                t.prepare_measurements(*t.transfer_start_parameters())
+                t.pwr.switch_all_v(True)
                 t.perform_measurements()
-                t.reset_relays()
+                t.reset_relays(t.output_source_parameter())
 
 class MOS():
-    def __init__(self, data, keithley_controller, power_supply, switch_all_v):
+    def __init__(self, data, keithley_controller, power_supply, pwr):
         self.name = data[0]
         self.volt = data[1]
         self.type = data[2]
         self.pins = data[3]
         self.gate = Pin(gates, data[3][0])
-        self.switch_all_v = switch_all_v
+        self.pwr = pwr
 
         self.full_name = "Bank {} {} {}".format(self.volt, "NMOS" if self.type=="n" else "PMOS", self.name)
         if self.type == "n":  # source on SOURCE pin
@@ -275,7 +276,7 @@ class MOS():
         # Switch gate from default value to vadj0
         # self.dmm.c3732.open(bank = self.gate.bank, row = self.gate.default_row, column = self.gate.column) #TODO check if it was open
         # self.dmm.c3732.close(bank = self.gate.bank, row = VADJ0, column = self.gate.column)         #TODO check if will not cross with something
-        self.matrix_card.switch(bank=self.gate.bank, row = VADJ0 if self.gate.bank == 4 else VADJ1, column=self.gate.column) # should close previous first
+        self.matrix_card.switch(bank=self.gate.bank, row = VADJ0 if self.gate.bank == 3 else VADJ1, column=self.gate.column) # should close previous first
 
         # Switch drain from default value to vadj1
         # self.dmm.c3732.open(bank = self.drain.bank, row = self.drain.default_row, column = self.drain.column)
@@ -318,8 +319,7 @@ class MOS():
         self.matrix_card.switch(bank = self.drain.bank, row = self.drain.default_row, column = self.drain.column)
         self.switch_card.open(self.dmm_channel)
 
-    def transfer_ch(self):
-        print("\n ::::Transfer {}\n".format(self.full_name))
+    def transfer_start_parameters(self):
         if self.type == "n":
             gate_start = 0
             source_start = 0
@@ -327,11 +327,11 @@ class MOS():
             drain_start = 0
             drain_limit = self.drain.max_v
             if self.volt == 1.8:
-                gate_step   = 0.05
-                drain_step  = 0.1
+                gate_step   = 0.3#0.05 TODO return value
+                drain_step  = 0.9#0.1
             elif self.volt == 3.3:
-                gate_step = 0.1
-                drain_step = 0.2
+                gate_step = 0.3#0.1
+                drain_step = 0.3#0.2
             else: # 45V
                 gate_step = 1
                 drain_step = 5
@@ -342,13 +342,55 @@ class MOS():
             drain_start  = self.drain.max_v
             drain_limit  = 0
             if self.volt == 1.8:
-                gate_step   = -0.05
-                drain_step  = -0.1
+                gate_step   = -0.3#-0.05
+                drain_step  = -0.9#-0.1
             elif self.volt == 3.3:
-                gate_step = -0.1
-                drain_step = -0.2
+                gate_step = -0.3#-0.1
+                drain_step = -0.3#-0.2
             else:  # 45V
                 gate_step = -1
+                drain_step = -5
+        return source_start, gate_start, drain_start
+    
+    def output_source_parameter(self):
+        if self.type == "n":
+            source_start = 0
+        else:
+            source_start = self.source.max_v
+
+        return source_start
+
+    def transfer_ch(self):
+        print("\n ::::Transfer {}\n".format(self.full_name))
+        if self.type == "n":
+            gate_start = 0
+            source_start = 0
+            gate_limit = self.gate.max_v
+            drain_start = 0
+            drain_limit = self.drain.max_v
+            if self.volt == 1.8:
+                gate_step   = 0.9#0.05
+                drain_step  = 0.9#0.1
+            elif self.volt == 3.3:
+                gate_step = 1.65#0.1
+                drain_step = 1.65#0.2
+            else: # 45V
+                gate_step = 6#1
+                drain_step = 5
+        else:
+            gate_start   = self.gate.max_v
+            source_start = self.source.max_v
+            gate_limit   = 0
+            drain_start  = self.drain.max_v
+            drain_limit  = 0
+            if self.volt == 1.8:
+                gate_step   = -0.9#-0.05
+                drain_step  = -0.9#-0.1
+            elif self.volt == 3.3:
+                gate_step = -1.65#-0.1
+                drain_step = -1.65#-0.2
+            else:  # 45V
+                gate_step = -6#-1
                 drain_step = -5
 
         gate_values = [round(i,2) for i in np.arange(gate_start, gate_limit+gate_step, gate_step)]
@@ -381,7 +423,9 @@ class MOS():
                 self.vsup.set_vamplitude("VADJ1", gate_vadj)
                 # measurements
                 print("Current meas")
-                current = 0.01#self.meas.get_voltage()/0.1   #0.1 R resistor #TODO implement
+                # current = 0.01#self.meas.get_voltage()/0.1   #0.1 R resistor #TODO implement
+                current = float(self.switch_card.meas_dcvolts(self.dmm_channel))
+                print(current)
                 single_family.append(current)  #TODO Do we want to set current limit?
 
                 if current >= 0.04: # 40 mA limit
@@ -404,14 +448,14 @@ class MOS():
             drain_start = 0
             drain_limit = self.drain.max_v
             if self.volt == 1.8:
-                gate_step   = 0.1
-                drain_step  = 0.05
+                gate_step   = 0.9#0.1
+                drain_step  = 0.9#0.05
             elif self.volt == 3.3:
-                gate_step = 0.2
-                drain_step = 0.1
+                gate_step = 1.65#0.2
+                drain_step = 1.65#0.1
             else: # 45V
-                gate_step = 3
-                drain_step = 1
+                gate_step = 6#3
+                drain_step = 5#1
         else:
             gate_start   = self.gate.max_v
             gate_limit   = 0
@@ -419,14 +463,14 @@ class MOS():
             drain_start  = self.drain.max_v
             drain_limit  = 0
             if self.volt == 1.8:
-                gate_step   = -0.1
-                drain_step  = -0.05
+                gate_step   = -0.9#-0.1
+                drain_step  = -0.9#-0.05
             elif self.volt == 3.3:
-                gate_step = -0.2
-                drain_step = -0.1
+                gate_step = -1.65#-0.2
+                drain_step = -1.65#-0.1
             else:  # 45V
-                gate_step = -3
-                drain_step = -1
+                gate_step = -6#-3
+                drain_step = -5#-1
 
         gate_values = [round(i,2) for i in np.arange(gate_start, gate_limit+gate_step, gate_step)]
         if gate_values[-1] > gate_limit:
@@ -456,7 +500,9 @@ class MOS():
                 self.vsup.set_vamplitude("VADJ0", drain_vadj)
                 # measurements
                 print("Current meas")
-                current = 0.001 #self.meas.get_voltage()/0.1   #0.1 R resistor #TODO implement
+                # current = 0.001 #self.meas.get_voltage()/0.1   #0.1 R resistor #TODO implement
+                current = float(self.switch_card.meas_dcvolts(self.dmm_channel))
+                print(current)
                 single_family.append(current)  #TODO Do we want to set current limit?
 
                 if current >= 0.04: # 40 mA limit

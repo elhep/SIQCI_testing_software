@@ -10,6 +10,22 @@ from ivref import IVRefMeas
 from dac import DACMeas
 import time
 
+class PowerManagement():
+    def __init__(self, arduino, vsup):
+        self.arduino = arduino
+        self.vsup = vsup
+
+    def switch_all_v(self, state):
+        if state:   # Arduino - first to swich on, last to swich off
+            self.arduino.switch_vsup(state)
+            time.sleep(1)
+            self.vsup.output.general.set_state(state)
+            time.sleep(1)
+        else:
+            self.vsup.output.general.set_state(state)
+            self.arduino.switch_vsup(state)
+            time.sleep(1)
+
 def init(vsup, arduino):
     '''
     vsup.switch_18v_on
@@ -18,7 +34,7 @@ def init(vsup, arduino):
     '''
     pass
 
-def run(vsup, dmm, arduino, switch_all_v):
+def run(vsup, dmm, arduino, pwr):
     vsup    = vsup
     picoamp = ()
     arduino = arduino
@@ -26,13 +42,15 @@ def run(vsup, dmm, arduino, switch_all_v):
     lakeshore = () #LakeShore()
 
     measurements = [        # do NOT comment any line. If you want to skip some measuremnts, change arg: perfom=False!!!
-        CMOSMeas(switch_all_v, dmm, vsup, arduino, perform=True),# do NOT comment any line
-        NMOSMeas(switch_all_v, dmm, vsup, arduino, perform=True), # do NOT comment any line
-        IVRefMeas(switch_all_v, dmm, arduino, lakeshore, "V", perform=True), # do NOT comment any line
-        IVRefMeas(switch_all_v, dmm, arduino, lakeshore, "I", perform=True), # do NOT comment any line
-        DACMeas(switch_all_v, dmm, arduino, perform=True), # do NOT comment any line
+        CMOSMeas(pwr, dmm, vsup, arduino, perform=True),# do NOT comment any line
+        NMOSMeas(pwr, dmm, vsup, arduino, perform=True), # do NOT comment any line
+        IVRefMeas(pwr, dmm, arduino, lakeshore, "V", perform=True), # do NOT comment any line
+        IVRefMeas(pwr, dmm, arduino, lakeshore, "I", perform=True), # do NOT comment any line
+        DACMeas(pwr, dmm, arduino, perform=True), # do NOT comment any line
         # leakage, # do NOT comment any line
     ]
+
+    arduino.switch_vsup(True)
 
     if not os.path.exists("results"):
         os.makedirs("results")
@@ -86,21 +104,15 @@ if __name__ == '__main__':
         vlimit = 45.5,
         climit = 0.5
     )
-    vsup = NGP800(channels_config=[ch1, ch2, ch3, ch4], ip="192.168.95.140", debug=True)
+    vsup = NGP800(channels_config=[ch1, ch2, ch3, ch4], ip="192.168.95.140", debug=False)
 
-    arduino = Arduino(serial_nb=1, debug = True, sim = True)
+    arduino = Arduino(serial_nb=1, debug = True, sim = False)
+
+    pwr = PowerManagement(arduino, vsup)
 
     from keithley.Drivers.Series_3700A.Series_3700A_Python_Sockets_Driver import card_model, Series_3700A_Sockets_Driver
-    def switch_all_v(state):
-        if state:   # Arduino - first to swich on, last to swich off
-            arduino.switch_vsup(state)
-            vsup.output.general.set_state(state)
-            time.sleep(1)
-        else:
-            vsup.output.general.set_state(state)
-            arduino.switch_vsup(state)
-            time.sleep(1)
-    controler = Series_3700A_Sockets_Driver.KEI3706A(switch_all_v, stub=1)
+
+    controler = Series_3700A_Sockets_Driver.KEI3706A(pwr, echo=1, stub=0)
     ipAddress1 = "192.168.95.141"
     port = 5025
     timeout = 20.0
@@ -112,9 +124,13 @@ if __name__ == '__main__':
     # card3723.close(5)
     controler.add_new_card(2, card_model.Model_3732_4B,
                            [(True,False),(True,False),(True,False),(True,False)])
+    controler.SendCmd("channel.setbackplane(\"{}\",\"{}\")".format("1001:1030", str(1911)))
+    controler.SendCmd("dmm.setconfig(\"{}\",\"{}\")".format("1001:1030", "dcvolts"))
+    controler.SendCmd("BCVBuffer = dmm.makebuffer(1)")
+    controler.SendCmd("dmm.measurecount = 1")
     # card3732 = controler.cards[2]
     # card3732.close(card3732.channel_number(1, 2, 7))
 
 
-    run(vsup, controler, arduino, switch_all_v)
+    run(vsup, controler, arduino, pwr)
 
