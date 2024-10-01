@@ -432,7 +432,7 @@ class MOS():
                     break
             self.vsup.set_vamplitude("VADJ1", gate_values[0]) #return to init value for safe VADJ1 switch
             data.append(single_family)
-
+        self.vsup.set_vamplitude("VADJ0", drain_values[0]) #return to init value for safe VADJ0 switch
         #switch all pins to default voltage sources
         # self.reset_relays(source_start)
 
@@ -509,7 +509,7 @@ class MOS():
                     break
             self.vsup.set_vamplitude("VADJ0", drain_values[0]) #return to init value for safe VADJ0 switch
             data.append(single_family)
-
+        self.vsup.set_vamplitude("VADJ1", gate_values[0]) #return to init value for safe VADJ1 switch
         # switch all pins to default voltage sources
         # self.reset_relays(source_start)
 

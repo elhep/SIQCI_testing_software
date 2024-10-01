@@ -11,7 +11,7 @@ class Arduino():
         self.sim = sim
         if not sim:
             self.ser = serial.Serial(
-                port = "/dev/ttyACM0",
+                port = "/dev/ttyACM2",
                 baudrate=9600,
             )
             # self.ser = serial.Serial('/dev/ttyUSB' + str(serial_nb), 115200, timeout=2)

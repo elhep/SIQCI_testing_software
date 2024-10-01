@@ -75,34 +75,34 @@ if __name__ == '__main__':
     ch1 = ChannelConfig(
         "P18V0",
         18.0,
-        0.5,
+        0.005,
         vprotection= 18.5,
         vlimit = 18.5,
-        climit = 0.5
+        climit = 0.005
     )
     ch2 = ChannelConfig(
         "VADJ1",
         0.0,
-        0.5,
+        0.015,
         vprotection= 18.5,
         vlimit = 18.5,
-        climit = 0.5
+        climit = 0.015
     )
     ch3 = ChannelConfig(
         "P45V0",
         45.0,
-        0.5,
+        0.005,
         vprotection= 45.5,
         vlimit = 45.5,
-        climit = 0.5
+        climit = 0.005
     )
     ch4 = ChannelConfig(
         "VADJ0",
         0.0,
-        0.5,
+        0.015,
         vprotection= 45.5,
         vlimit = 45.5,
-        climit = 0.5
+        climit = 0.015
     )
     vsup = NGP800(channels_config=[ch1, ch2, ch3, ch4], ip="192.168.95.140", debug=False)
 
