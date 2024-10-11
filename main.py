@@ -70,6 +70,12 @@ def run(vsup, dmm, arduino, pwr):
 
 
 if __name__ == '__main__':
+    import serial.tools.list_ports as port_list
+    ports = list(port_list.comports())
+    for p in ports:
+        print(p)
+        
+    exit()
     from vsup import NGP800, ChannelConfig
     # First channel:
     ch1 = ChannelConfig(

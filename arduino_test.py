@@ -5,7 +5,7 @@ i = 0
 while True:
     try:
         ser = serial.Serial(
-            port = "/dev/ttyACM" + str(i),
+            port = "COM" + str(i),
             baudrate=9600,
         )
         break
@@ -33,11 +33,3 @@ while(True):
     input()
     time.sleep(1)
     ser.write(bytes([0xab, 0x01, 0x00, 0x00, 0x00, 0x00]))
-    # ser.write(bytes([0xab, 0x01, 0x00, 0x00, 0x00, 0x00]))
-#     print(ser.read_all())
-#     time.sleep(2)
-#     ser.write(bytes([0xab, 0x02, 0x20]))
-#     time.sleep(2)
-#     ser.write(bytes([78]))
-#     print(ser.read_all())
-#     time.sleep(2)
