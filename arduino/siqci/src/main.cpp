@@ -32,6 +32,7 @@ const int spi_mosi = 11;
 const int spi_miso = 12;
 const int clk = 13;             // CLK - common for data_in and SPI. Here is used only as simple output to control data_in 
 const int imio = 31;
+const int user_delay = 500;
 
 void setup() {
   Serial.begin(9600);
@@ -47,15 +48,16 @@ void setup() {
   pinMode(spi_cs, OUTPUT);
   pinMode(clk, OUTPUT);
 
+  digitalWrite(data_in, LOW);
+  digitalWrite(clk, LOW);
+  digitalWrite(spi_cs, LOW);
+  digitalWrite(spi_mosi, LOW);
   // TODO init ASIC register with zeros?
   digitalWrite(shdn, HIGH);
   // give the time to set up:
   delay(100);
   digitalWrite(shdn, HIGH);
-  digitalWrite(data_in, LOW);
-  digitalWrite(clk, LOW);
-  digitalWrite(spi_cs, LOW);
-  digitalWrite(spi_mosi, LOW);
+
 }
 
 int get_data() {
@@ -80,11 +82,11 @@ void update_asic(uint32_t asic_buffer) {
             digitalWrite(data_in, HIGH);
         }
         // RISING EDGE
+        delayMicroseconds(50);
         digitalWrite(clk, HIGH);
         delayMicroseconds(50);
         // FALLING EDGE
         digitalWrite(clk, LOW);
-        digitalWrite(data_in, LOW);
         delayMicroseconds(50);
         // if(digitalRead(data_rdy) == LOW){
         //     Serial.println("\tRDY AT bit " + String(i));
@@ -98,6 +100,7 @@ void update_asic(uint32_t asic_buffer) {
         // }
         
     }
+    digitalWrite(data_in, LOW);
 }
 
 void loop() {
@@ -122,12 +125,14 @@ void loop() {
             uart_buffer = get_data();
             digitalWrite( (uart_buffer & 0xF0) >> 4, uart_buffer & 0xF);
             Serial.println("OUTPUT: " + String((uart_buffer & 0xF0)>> 4) + " set to " + String(uart_buffer & 0xF));
+            delayMicroseconds(10);
         } 
         else if (uart_buffer == 3) // calibrate shift register
         {
             Serial.println("STARTING SR CALLIBRATION");
             digitalWrite(data_in, LOW);
             digitalWrite(clk, LOW);
+            Serial.println("While loop");
             while(digitalRead(data_rdy) == HIGH) {
                 // RISING EDGE
                 digitalWrite(clk, HIGH);
@@ -135,6 +140,7 @@ void loop() {
                 // FALLING EDGE
                 digitalWrite(clk, LOW);
             }
+            Serial.println("While loop ends");
             // when DATA_RDY LOW is detected: we need 2 more rising edges
             // one for clock last bit
             // one to transfer SR to memory register
@@ -147,6 +153,37 @@ void loop() {
             delayMicroseconds(10);
             // FALLING EDGE
             digitalWrite(clk, LOW);
+            Serial.println("CALIBRATION ENDS");
+        }
+        else if (uart_buffer == 4)
+        {
+            int iteration = 0;
+            while(digitalRead(data_rdy) == HIGH) {
+                // RISING EDGE
+                digitalWrite(clk, HIGH);
+                delayMicroseconds(user_delay);
+                // FALLING EDGE
+                digitalWrite(clk, LOW);
+                delayMicroseconds(user_delay);
+            }
+            // First clock to deacticate data_rdy
+            // RISING EDGE
+            digitalWrite(clk, HIGH);
+            delayMicroseconds(user_delay);
+            // FALLING EDGE
+            digitalWrite(clk, LOW);
+            delayMicroseconds(user_delay);
+            iteration += 1;
+            while(digitalRead(data_rdy) == HIGH) {
+                iteration += 1;
+                // RISING EDGE
+                digitalWrite(clk, HIGH);
+                delayMicroseconds(user_delay);
+                // FALLING EDGE
+                digitalWrite(clk, LOW);
+                delayMicroseconds(user_delay);
+            }
+            Serial.println("SR DEBUG rising edges: " + String(iteration));
         }
         else
         {
