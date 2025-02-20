@@ -1,3 +1,0 @@
-[submodule "keithley"]
-	path = keithley
-	url = git@github.com:tprzywoz/keithley.git

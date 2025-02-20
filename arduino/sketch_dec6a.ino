@@ -20,10 +20,10 @@
 
 // pins used for the connection with the sensor
 // the other you need are controlled by the SPI library):
-const int shdn = 2;             //shutdown active low
-const int rel1 = 3;             //choose mode: 1: both VADJ0 and VADJ1 are connected to bank 45V
+// const int shdn = 2;             //shutdown active low
+// const int rel1 = 3;             //choose mode: 1: both VADJ0 and VADJ1 are connected to bank 45V
                                 // 0: VADJ0 <-> P45V0 VAJD0, VADJ1 <-> P18V0_VADJ0
-const int rel0 = 4;             // choose voltage source - 0: VADJ0 VADJ1, 1: picoameter
+// const int rel0 = 4;             // choose voltage source - 0: VADJ0 VADJ1, 1: picoameter
 const int data_in = 5;          // ASIC data input
 const int data_rdy = 6;         // ASIC output to indicate that next clk rising edge will probe last bit. After that another 
                                 // rising edge is expected to save input buffer to internal register
@@ -31,8 +31,12 @@ const int spi_cs = 7;           // CS of SPI to ASIC (not used)
 const int spi_mosi = 11;
 const int spi_miso = 12;
 const int clk = 13;             // CLK - common for data_in and SPI. Here is used only as simple output to control data_in 
-const int imio = 31;
+const int imio = 32;
 const int user_delay = 500;
+
+const int dac_out_pin = A0;
+const int ics_out_pin = A1;
+const int bgp_out_pin = A2;
 
 void setup() {
   Serial.begin(9600);
@@ -41,9 +45,9 @@ void setup() {
   pinMode(data_in, INPUT);
   pinMode(spi_miso, INPUT);
   pinMode(spi_mosi, OUTPUT);
-  pinMode(shdn, OUTPUT);
-  pinMode(rel1, OUTPUT);
-  pinMode(rel0, OUTPUT);
+  // pinMode(shdn, OUTPUT);
+  // pinMode(rel1, OUTPUT);
+  // pinMode(rel0, OUTPUT);
   pinMode(data_in, OUTPUT);
   pinMode(spi_cs, OUTPUT);
   pinMode(clk, OUTPUT);
@@ -53,10 +57,10 @@ void setup() {
   digitalWrite(spi_cs, LOW);
   digitalWrite(spi_mosi, LOW);
   // TODO init ASIC register with zeros?
-  digitalWrite(shdn, HIGH);
+  // digitalWrite(shdn, HIGH);
   // give the time to set up:
   delay(100);
-  digitalWrite(shdn, HIGH);
+  // digitalWrite(shdn, HIGH);
 
 }
 
@@ -88,16 +92,16 @@ void update_asic(uint32_t asic_buffer) {
         // FALLING EDGE
         digitalWrite(clk, LOW);
         delayMicroseconds(50);
-        // if(digitalRead(data_rdy) == LOW){
-        //     Serial.println("\tRDY AT bit " + String(i));
+        // if(digitalRead(data_rdy) == HIGH){
+            // Serial.println("\tRDY AT bit " + String(i));
         // }
-        // if (i == 29){
-        //     if (digitalRead(data_rdy) == HIGH) //neg logic at input (BUT NOT AT OUTPUT!!!)
-        //     {
-        //         Serial.println("\tERROR: DATA READY not detected for data " + String(asic_buffer));
-        //     }
+        if (i == 29){
+            if (digitalRead(data_rdy) == LOW) //neg logic at input (BUT NOT AT OUTPUT!!!)
+            {
+                Serial.println("\tERROR: DATA READY not detected for data " + String(asic_buffer));
+            }
             
-        // }
+        }
         
     }
     digitalWrite(data_in, LOW);
@@ -106,6 +110,7 @@ void update_asic(uint32_t asic_buffer) {
 void loop() {
     uint32_t asic_buffer = 0;
     int uart_buffer = 0;
+    int readout;
     
     uart_buffer = get_data();
     
@@ -133,7 +138,7 @@ void loop() {
             digitalWrite(data_in, LOW);
             digitalWrite(clk, LOW);
             Serial.println("While loop");
-            while(digitalRead(data_rdy) == HIGH) {
+            while(digitalRead(data_rdy) == LOW) {
                 // RISING EDGE
                 digitalWrite(clk, HIGH);
                 delayMicroseconds(10);
@@ -155,10 +160,10 @@ void loop() {
             digitalWrite(clk, LOW);
             Serial.println("CALIBRATION ENDS");
         }
-        else if (uart_buffer == 4)
+        else if (uart_buffer == 4) // DEBUG MODE 
         {
             int iteration = 0;
-            while(digitalRead(data_rdy) == HIGH) {
+            while(digitalRead(data_rdy) == LOW) {
                 // RISING EDGE
                 digitalWrite(clk, HIGH);
                 delayMicroseconds(user_delay);
@@ -174,7 +179,7 @@ void loop() {
             digitalWrite(clk, LOW);
             delayMicroseconds(user_delay);
             iteration += 1;
-            while(digitalRead(data_rdy) == HIGH) {
+            while(digitalRead(data_rdy) == LOW) {
                 iteration += 1;
                 // RISING EDGE
                 digitalWrite(clk, HIGH);
@@ -184,6 +189,21 @@ void loop() {
                 delayMicroseconds(user_delay);
             }
             Serial.println("SR DEBUG rising edges: " + String(iteration));
+        }
+        else if (uart_buffer == 5) // read ics bgp
+        {
+            // update_asic(0x00000001);
+            delay(1);
+            readout = analogRead(ics_out_pin);
+            Serial.println("ICS: " + String(readout));
+            readout = analogRead(bgp_out_pin);
+            Serial.println("BGP: " + String(readout));
+
+        }
+        else if (uart_buffer == 6) // read dac
+        {
+          readout = analogRead(dac_out_pin);
+          Serial.println("DAC value: " + String(readout));
         }
         else
         {

@@ -3,26 +3,27 @@ import time
 import socket
 import csv
 
-i = 0
-while True:
-    try:
-        ser = serial.Serial(
-            port = "COM" + str(i),
-            baudrate=9600,
-        )
-        break
-    except:
-        i += 1
+
     
 class SR():
-    def __init__(self, ser):
+    def __init__(self):
+        i = 0
+        while True:
+            try:
+                ser = serial.Serial(
+                    port = "COM" + str(i),
+                    baudrate=9600,
+                )
+                break
+            except:
+                i += 1
         self.reg = 0
         self.ser = ser
         self.ser.write(bytes([0xab, 0x03])) # calibration
-        print(ser.read_until())
-        print(ser.read_until())
-        print(ser.read_until())
-        print(ser.read_until())
+        print(self.ser.read_until())
+        print(self.ser.read_until())
+        print(self.ser.read_until())
+        print(self.ser.read_until())
         
     def update_asic(self):
         data = [0]*4
@@ -32,7 +33,7 @@ class SR():
         # print(data)
         # print([0xab, 0x01] + data)
         self.ser.write(bytes([0xab, 0x01]+data))
-        print(ser.read_until()) # single line to confirm new value
+        print(self.ser.read_until()) # single line to confirm new value
         
     def active_ref(self, state):
         if state:
@@ -73,7 +74,7 @@ class SR():
         return self.ser.read_until()
     
     def read_refs(self):
-        ser.write(bytes([0xab, 0x05]))
+        self.ser.write(bytes([0xab, 0x05]))
         x = self.ser.read_until()
         y = self.ser.read_until()
         return x + y
@@ -87,43 +88,43 @@ class DMM():
         print(self.socket.recv(64))
 
     def write(self, cmd):
-        self.socket.send('{}\n'.format(cmd).encode('utf-8'))
+        self.socket.send('{}\r'.format(cmd).encode('utf-8'))
         
     def ask(self, cmd):
         self.write(cmd)
         self.socket.recv(300).decode('utf-8').strip()
         data = self.socket.recv(300).decode('utf-8').strip()
-        data = data[:data.find('\n')]
+        data = data[:data.find('\r')]
         return data
 
-dmm = DMM()
-print(dmm.ask("*IDN?"))
-x =(dmm.ask("READ?"))
-print(x)
-x =(dmm.ask("READ?"))
-print(x)
-    
-sr = SR(ser)
-# sr.active_ref(True)
-# sr.active_ref(False)
+if __name__ == "__main__":
+    dmm = DMM()
+    print(dmm.ask("*IDN?"))
+    x =(dmm.ask("READ?"))
+    print(x)
+    x =(dmm.ask("READ?"))
+    print(x)
+        
+    sr = SR()
+    # sr.active_ref(True)
+    # sr.active_ref(False)
 
 
-# nmos = 0
-# print(nmos)
-# sr.set_active_nmos(nmos)
-# exit(1)
-for i in range(3):
-    dac_results = list()
-    sr.active_dac(3)
-    for i in range(0,1024, 1):
-        # time.sleep(1)
-        print(i)
-        sr.set_dac_value(i)
-        time.sleep(1)
-        result = float(dmm.ask("READ?"))
-        print(result)
-        dac_results.append(result)
+    # nmos = 0l
+    # print(nmos)
+    # sr.set_active_nmos(nmos)
+    # exit(1)
+    for i in range(3):
+    # i=0
+        dac_results = list()
+        sr.active_dac(i+1)
+        for j in range(0,1024, 1):
+            print(j)
+            sr.set_dac_value(j)
+            result = float(dmm.ask("READ?"))
+            print(result)
+            dac_results.append(result)
 
-    with open("dac_results{}",format(i), 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(dac_results)
+        with open("dac_results{}".format(i), 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(dac_results)
