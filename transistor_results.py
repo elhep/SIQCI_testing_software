@@ -30,7 +30,7 @@ class SIQCI():
         self.drain_smu = SMU('192.168.95.146')
         
     def run_test(self, bank, type, asic, transistors=None):
-        if (bank != 1.8) and (bank != 3.3) and (bank != 45) and (bank != "MUX"):
+        if (bank != 1.8) and (bank != 3.3) and (bank != 8.0) and (bank != "MUX"):
             raise "Error: bank type not supported. Use: 1.8 / 3.3 / 45 / 'MUX'"
         if (type != "NMOS") and (type != "PMOS"):
             raise "Error: tranistor type not supported. Use 'NMOS' or 'PMOS'"
@@ -47,6 +47,10 @@ class SIQCI():
                 for id in transistors:
                     sr.set_active_nmos(i)
                     self._perform_transistor_test(id, asic, type, "MU")
+        elif bank == 8.0:
+            for i in range(10):
+                input("Prepare connection for measurements: Transistor:{} Type:{} Bank:{} \n Press enter to continue".format(i, type, bank))
+                self._perform_transistor_test(i, asic, type, bank if bank.is_integer else int(bank*10))
         elif transistors is None:
             for i in range(4):
                 input("Prepare connection for measurements: Transistor:{} Type:{} Bank:{} \n Press enter to continue".format(i, type, bank))
